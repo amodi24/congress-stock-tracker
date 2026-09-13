@@ -12,6 +12,7 @@
   --sell-bg: #f4e5e2;
   --exchange: #5b5089;
   --exchange-bg: #e9e5f2;
+  --house: #2f6a8f;
   --focus: #2f6fed;
 }
 
@@ -30,6 +31,7 @@
     --sell-bg: #35201d;
     --exchange: #b3a4e6;
     --exchange-bg: #292440;
+    --house: #7ab8dd;
     --focus: #7aa6ff;
   }
 }
@@ -48,6 +50,7 @@
   --sell-bg: #35201d;
   --exchange: #b3a4e6;
   --exchange-bg: #292440;
+  --house: #7ab8dd;
   --focus: #7aa6ff;
 }
 
@@ -295,6 +298,7 @@ tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--accent-soft); }
 
 tbody tr.source-senate td:first-child { box-shadow: inset 3px 0 0 0 var(--ink-soft); }
+tbody tr.source-house td:first-child { box-shadow: inset 3px 0 0 0 var(--house); }
 tbody tr.source-insider td:first-child { box-shadow: inset 3px 0 0 0 var(--accent); }
 
 .cell-date, .cell-amount, .cell-ticker {

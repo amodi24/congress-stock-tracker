@@ -33,6 +33,14 @@ jobs:
             python scripts/scrape_senate_ptrs.py
           fi
 
+      - name: Scrape House PTR filings
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python scripts/scrape_house_ptrs.py --force
+          else
+            python scripts/scrape_house_ptrs.py
+          fi
+
       - name: Scrape insider Form 4 filings
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -45,7 +53,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/trades.json data/state.json data/insider_trades.json data/insider_state.json
+          git add data/trades.json data/state.json data/house_trades.json data/house_state.json data/insider_trades.json data/insider_state.json
           git diff --cached --quiet || git commit -m "Update trade data"
           git push
 

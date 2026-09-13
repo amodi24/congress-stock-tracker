@@ -16,6 +16,7 @@
   const els = {
     statCount: document.getElementById("stat-count"),
     statSenators: document.getElementById("stat-senators"),
+    statReps: document.getElementById("stat-reps"),
     statInsiders: document.getElementById("stat-insiders"),
     statCompanies: document.getElementById("stat-companies"),
     statUpdated: document.getElementById("stat-updated"),
@@ -87,6 +88,23 @@
       source: "senate",
       source_label: "U.S. Senator",
       filer_name: `${t.senator_first} ${t.senator_last}`,
+      ticker: t.ticker,
+      company: t.asset_name,
+      role: t.owner,
+      transaction_date_iso: t.transaction_date_iso,
+      filing_date_iso: t.filing_date_iso,
+      type_label: t.transaction_type,
+      type_bucket: senateTypeBucket(t.transaction_type),
+      amount_display: t.amount_range,
+      amount_min: t.amount_min,
+    };
+  }
+
+  function normalizeHouseTrade(t) {
+    return {
+      source: "house",
+      source_label: "U.S. Representative",
+      filer_name: `${t.member_first} ${t.member_last}`,
       ticker: t.ticker,
       company: t.asset_name,
       role: t.owner,
@@ -225,6 +243,9 @@
     const senators = new Set(trades.filter((t) => t.source === "senate").map((t) => t.filer_name));
     els.statSenators.textContent = senators.size.toLocaleString();
 
+    const reps = new Set(trades.filter((t) => t.source === "house").map((t) => t.filer_name));
+    els.statReps.textContent = reps.size.toLocaleString();
+
     const insiders = new Set(trades.filter((t) => t.source === "insider").map((t) => t.filer_name));
     els.statInsiders.textContent = insiders.size.toLocaleString();
 
@@ -315,20 +336,24 @@
     wireControls();
     loadVisitCount();
     try {
-      const [senateTrades, senateState, insiderTrades, insiderState] = await Promise.all([
+      const [senateTrades, senateState, houseTrades, houseState, insiderTrades, insiderState] = await Promise.all([
         fetchJson("data/trades.json", []),
         fetchJson("data/state.json", null),
+        fetchJson("data/house_trades.json", []),
+        fetchJson("data/house_state.json", null),
         fetchJson("data/insider_trades.json", []),
         fetchJson("data/insider_state.json", null),
       ]);
 
       state.trades = [
         ...senateTrades.map(normalizeSenateTrade),
+        ...houseTrades.map(normalizeHouseTrade),
         ...insiderTrades.map(normalizeInsiderTrade),
       ];
 
       renderStats(state.trades, [
         senateState && senateState.last_run_utc,
+        houseState && houseState.last_run_utc,
         insiderState && insiderState.last_run_utc,
       ]);
       applyFilters();
