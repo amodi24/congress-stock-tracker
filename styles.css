@@ -354,5 +354,6 @@ tbody tr:hover { background: var(--accent-soft); }
 @media (max-width: 640px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
   .controls { flex-direction: column; align-items: stretch; }
+  .search-field { flex: none; }
   .filter-group { justify-content: flex-start; }
 }
