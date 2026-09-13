@@ -1,6 +1,6 @@
 (function () {
   const PAGE_SIZE = 50;
-  const GOATCOUNTER_CODE = "YOUR-GOATCOUNTER-CODE";
+  const GOATCOUNTER_CODE = "congress-stock-tracker";
 
   const state = {
     trades: [],
@@ -276,13 +276,16 @@
     if (GOATCOUNTER_CODE === "YOUR-GOATCOUNTER-CODE") return;
     try {
       const res = await fetch(`https://${GOATCOUNTER_CODE}.goatcounter.com/counter//.json`);
-      if (!res.ok) return;
+      // GoatCounter returns a 404 status (not 200) for a path with zero
+      // recorded views so far, but still includes a valid {count: "0"}
+      // body -- so parse the JSON regardless of res.ok rather than
+      // bailing on status code alone.
       const data = await res.json();
-      if (!data.count) return;
+      if (data.count === undefined) return;
       els.statVisits.textContent = data.count;
       els.statVisitsTile.hidden = false;
     } catch (err) {
-      // GoatCounter unreachable or not yet enabled for public counts -- fail quietly.
+      // GoatCounter unreachable, CORS-blocked, or malformed response -- fail quietly.
     }
   }
 
