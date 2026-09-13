@@ -303,6 +303,63 @@ tbody tr.source-insider td:first-child { box-shadow: inset 3px 0 0 0 var(--accen
   white-space: nowrap;
 }
 
+.cell-ticker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.research summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--ink-soft);
+}
+
+.research summary::-webkit-details-marker { display: none; }
+.research summary::marker { content: ""; }
+
+.research summary svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+
+.research summary:hover,
+.research[open] summary {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.research summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.research-menu {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  font-family: "IBM Plex Sans", sans-serif;
+}
+
+.research-menu a {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.research-menu a:hover { text-decoration: underline; }
+
 .cell-senator {
   font-weight: 500;
   white-space: nowrap;

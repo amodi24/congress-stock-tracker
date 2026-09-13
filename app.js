@@ -55,6 +55,28 @@
     return `${m}/${d}/${y}`;
   }
 
+  function researchLinks(ticker) {
+    const q = encodeURIComponent(ticker);
+    return [
+      { label: "SEC filings", href: `https://www.sec.gov/edgar/search/#/q=${q}` },
+      { label: "Yahoo Finance", href: `https://finance.yahoo.com/quote/${q}` },
+      { label: "News search", href: `https://news.google.com/search?q=${q}%20stock&hl=en-US&gl=US&ceid=US:en` },
+    ];
+  }
+
+  function tickerCell(ticker) {
+    const safeTicker = escapeHtml(ticker);
+    const links = researchLinks(ticker)
+      .map((l) => `<a href="${l.href}" target="_blank" rel="noopener">${l.label}</a>`)
+      .join("");
+    return `<span class="ticker-text">${safeTicker}</span><details class="research" name="research">
+      <summary aria-label="Research ${safeTicker}" title="Research ${safeTicker}">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13.6 12.2a6 6 0 1 0-1.4 1.4l4 4 1.4-1.4-4-4ZM8 12a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"/></svg>
+      </summary>
+      <div class="research-menu">${links}</div>
+    </details>`;
+  }
+
   function formatUsd(value) {
     if (value === null || value === undefined) return "—";
     return "$" + Math.round(value).toLocaleString("en-US");
@@ -157,7 +179,7 @@
             <span>${escapeHtml(t.filer_name)}</span>
             <span class="source-tag">${escapeHtml(t.source_label)}</span>
           </td>
-          <td class="cell-ticker">${t.ticker ? escapeHtml(t.ticker) : "—"}</td>
+          <td class="cell-ticker">${t.ticker ? tickerCell(t.ticker) : "—"}</td>
           <td class="cell-asset">${escapeHtml(t.company || "—")}</td>
           <td><span class="type-pill ${typePillClass(t.type_bucket)}">${escapeHtml(t.type_label || "—")}</span></td>
           <td class="cell-amount">${escapeHtml(t.amount_display || "—")}</td>
