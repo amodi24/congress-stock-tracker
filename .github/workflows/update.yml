@@ -1,0 +1,41 @@
+name: Update Senate trade data
+
+on:
+  schedule:
+    # Two triggers to cover 9am US/Eastern across both EDT and EST;
+    # scrape_senate_ptrs.py itself checks the real Eastern hour and
+    # only does a real run on whichever one actually lands at 9am.
+    - cron: "0 13 * * *"
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r scripts/requirements.txt
+
+      - name: Scrape Senate PTR filings
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python scripts/scrape_senate_ptrs.py --force
+          else
+            python scripts/scrape_senate_ptrs.py
+          fi
+
+      - name: Commit and push if data changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/trades.json data/state.json
+          git diff --cached --quiet || git commit -m "Update Senate trade data"
+          git push
