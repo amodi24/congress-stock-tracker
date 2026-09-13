@@ -2,11 +2,12 @@ name: Update trade data
 
 on:
   schedule:
-    # Two triggers to cover 9am US/Eastern across both EDT and EST;
-    # scrape_senate_ptrs.py itself checks the real Eastern hour and
-    # only does a real run on whichever one actually lands at 9am.
-    - cron: "0 13 * * *"
-    - cron: "0 14 * * *"
+    # Two triggers to cover 7pm US/Eastern (after market close) across
+    # both EDT and EST; scrape_senate_ptrs.py itself checks the real
+    # Eastern hour and only does a real run on whichever one actually
+    # lands at 7pm.
+    - cron: "0 23 * * *"
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 permissions:

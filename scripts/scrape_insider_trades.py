@@ -182,12 +182,12 @@ def is_scheduled_hour_ok() -> bool:
     if "--force" in sys.argv:
         return True
     eastern_hour = datetime.now(ZoneInfo("America/New_York")).hour
-    return eastern_hour == 9
+    return eastern_hour == 19
 
 
 def main() -> None:
     if not is_scheduled_hour_ok():
-        print("Not the scheduled 9am US/Eastern hour yet on this trigger; skipping run.")
+        print("Not the scheduled 7pm US/Eastern hour yet on this trigger; skipping run.")
         return
 
     tickers = tickers_from_senate_data()
