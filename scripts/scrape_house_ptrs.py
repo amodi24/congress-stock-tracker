@@ -5,9 +5,15 @@ data/house_trades.json.
 Unlike the Senate's electronic PTRs, House PTRs are filed as PDFs. Most
 (the ones filed digitally, which is nearly all current filings) have
 real extractable text that this script parses with a set of patterns
-tuned against real filings; a minority of older/paper filings are
-scanned images with no extractable text at all and are skipped (logged,
-not silently dropped) rather than attempting OCR.
+tuned against real filings. A minority of older/paper filings are
+scanned images with no extractable text -- for those, best-effort OCR
+(Tesseract) pulls out the asset names mentioned (cropped to just the
+"Full Asset Name" column of the standard PTR form, to avoid the
+checkbox/date columns, which OCR can't reliably map to the right grid
+cell from text alone). These OCR entries carry no transaction date,
+type, or amount -- just a company name and a link to the original PDF
+-- and are flagged with ocr_best_effort so the UI can show them
+differently from a fully-parsed transaction.
 
 Safe to run daily forever: queries this year and last year every run
 (cheap -- the site's own filter is year-granularity, not date-range),
@@ -19,6 +25,7 @@ backfill window after parsing.
 import io
 import json
 import re
+import shutil
 import sys
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -26,8 +33,15 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pdfplumber
+import pytesseract
 import requests
 from bs4 import BeautifulSoup
+
+_WINDOWS_TESSERACT = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+if shutil.which("tesseract"):
+    pass  # already on PATH (e.g. apt-installed on the GitHub Actions runner)
+elif Path(_WINDOWS_TESSERACT).exists():
+    pytesseract.pytesseract.tesseract_cmd = _WINDOWS_TESSERACT
 
 HOUSE_USER_AGENT = "congress-stock-tracker (personal, non-commercial) amodi24@hotmail.com"
 BASE = "https://disclosures-clerk.house.gov"
@@ -35,6 +49,13 @@ SEARCH_PAGE = f"{BASE}/FinancialDisclosure/ViewSearch"
 SEARCH_RESULTS = f"{BASE}/FinancialDisclosure/ViewMemberSearchResult"
 REQUEST_DELAY_SECONDS = 0.3
 BACKFILL_DAYS = 183
+OCR_MAX_PAGES = 20  # cap per filing; some scanned filings run 50+ pages of attachments
+OCR_RESOLUTION = 200
+# Proportional crop of the rendered page, isolating the "Full Asset Name"
+# column of the standard PTR form (measured against real sample filings).
+OCR_CROP_LEFT = 0.045
+OCR_CROP_RIGHT = 0.26
+OCR_CROP_TOP = 0.22
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
@@ -66,6 +87,10 @@ OWNER_RE = re.compile(r"^(SP|JT|DC)\s+")
 AMOUNT_TAIL_RE = re.compile(r"\$[\d,]+\s*$")
 HEADER_LINE_RE = re.compile(r"^(ID Owner Asset|Type Date Gains|\$200\?)")
 SIGNED_RE = re.compile(r"Digitally Signed:.*?,\s*(\d{2}/\d{2}/\d{4})")
+
+OCR_NOISE_RE = re.compile(r"^provide\b|not.*ticker|^[A-Za-z]{1,3}$", re.IGNORECASE)
+OCR_PREFIX_RE = re.compile(r"^[\[\]{}|_\s]*[A-Za-z]{1,3}[_\s]+")
+OCR_JUNK_CHARS_RE = re.compile(r"[\[\]{}|_]")
 
 
 def new_session() -> requests.Session:
@@ -190,12 +215,59 @@ def mdy_to_iso(date_str: str) -> str | None:
         return None
 
 
-def parse_pdf(pdf_bytes: bytes) -> tuple[str | None, list[dict]]:
+def ocr_extract_asset_names(pdf) -> list[str]:
+    """Best-effort: OCR just the 'Full Asset Name' column of each page
+    (cropped to avoid the checkbox/date columns, which OCR can't reliably
+    map to a grid cell) and return the distinct, cleaned lines found.
+    Deliberately does NOT try to merge wrapped multi-line names -- an
+    occasional split entry is a safer failure mode than incorrectly
+    merging two unrelated companies together.
+    """
+    names: list[str] = []
+    seen: set[str] = set()
+    # Page 1 of this paper-form template is always a certification cover
+    # sheet ("please see attached" etc), never real transaction rows.
+    for page in pdf.pages[1 : 1 + OCR_MAX_PAGES]:
+        image = page.to_image(resolution=OCR_RESOLUTION).original
+        width, height = image.size
+        cropped = image.crop(
+            (int(width * OCR_CROP_LEFT), int(height * OCR_CROP_TOP), int(width * OCR_CROP_RIGHT), height)
+        )
+        text = pytesseract.image_to_string(cropped, config="--psm 4")
+        for line in text.split("\n"):
+            cleaned = OCR_PREFIX_RE.sub("", line.strip())
+            cleaned = OCR_JUNK_CHARS_RE.sub("", cleaned).strip(" -.")
+            if not cleaned or len(cleaned) < 4 or OCR_NOISE_RE.search(cleaned):
+                continue
+            key = cleaned.upper()
+            if key not in seen:
+                seen.add(key)
+                names.append(cleaned)
+    return names
+
+
+def parse_pdf(pdf_bytes: bytes) -> tuple[str, str | None, list[dict]]:
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
         text = "\n".join(page.extract_text() or "" for page in pdf.pages)
 
-    if len(text.strip()) < 100:
-        return None, []  # scanned/image PDF, no extractable text
+        if len(text.strip()) < 100:
+            # Scanned/image PDF: no extractable text for the normal parser.
+            asset_names = ocr_extract_asset_names(pdf)
+            transactions = [
+                {
+                    "transaction_date_iso": None,
+                    "owner": None,
+                    "ticker": None,
+                    "asset_name": name,
+                    "transaction_type": None,
+                    "amount_range": None,
+                    "amount_min": None,
+                    "amount_max": None,
+                    "ocr_best_effort": True,
+                }
+                for name in asset_names
+            ]
+            return "ocr", None, transactions
 
     signed_match = SIGNED_RE.search(text)
     filing_date_iso = mdy_to_iso(signed_match.group(1)) if signed_match else None
@@ -228,9 +300,10 @@ def parse_pdf(pdf_bytes: bytes) -> tuple[str | None, list[dict]]:
                 "amount_range": amount_text,
                 "amount_min": amount_min,
                 "amount_max": amount_max,
+                "ocr_best_effort": False,
             }
         )
-    return filing_date_iso, transactions
+    return "digital", filing_date_iso, transactions
 
 
 def is_scheduled_hour_ok() -> bool:
@@ -247,9 +320,8 @@ def main() -> None:
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     trades = load_json(HOUSE_TRADES_PATH, [])
-    state = load_json(STATE_PATH, {"processed_filing_ids": [], "unparseable_filing_ids": []})
+    state = load_json(STATE_PATH, {"processed_filing_ids": []})
     processed = set(state.get("processed_filing_ids", []))
-    unparseable = set(state.get("unparseable_filing_ids", []))
 
     session = new_session()
     token = get_csrf_token(session)
@@ -264,10 +336,15 @@ def main() -> None:
         all_filings.extend(filings)
         time.sleep(REQUEST_DELAY_SECONDS)
 
-    new_filings = [f for f in all_filings if f["filing_id"] not in processed and f["filing_id"] not in unparseable]
+    # Filings previously marked unparseable (pre-OCR runs) are deliberately
+    # NOT excluded here -- they're retried once under the OCR path below.
+    new_filings = [f for f in all_filings if f["filing_id"] not in processed]
     print(f"{len(new_filings)} new filings to fetch and parse.")
 
-    skipped_unparseable = 0
+    ocr_filings = 0
+    ocr_assets_found = 0
+    digital_filings = 0
+    empty_filings = 0
     skipped_future_dated = 0
     kept_transactions = 0
     today_iso = date.today().isoformat()
@@ -278,7 +355,6 @@ def main() -> None:
             STATE_PATH,
             {
                 "processed_filing_ids": sorted(processed),
-                "unparseable_filing_ids": sorted(unparseable),
                 "last_run_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "trade_count": len(trades),
             },
@@ -290,13 +366,17 @@ def main() -> None:
         if resp.status_code != 200:
             continue
 
-        filing_date_iso, transactions = parse_pdf(resp.content)
-        if filing_date_iso is None and not transactions:
-            unparseable.add(filing["filing_id"])
-            skipped_unparseable += 1
-            continue
-
+        mode, filing_date_iso, transactions = parse_pdf(resp.content)
         processed.add(filing["filing_id"])
+
+        if mode == "ocr":
+            ocr_filings += 1
+            ocr_assets_found += len(transactions)
+        elif transactions:
+            digital_filings += 1
+        else:
+            empty_filings += 1
+
         for tx in transactions:
             tx_date = tx["transaction_date_iso"]
             if tx_date and tx_date < cutoff:
@@ -314,6 +394,7 @@ def main() -> None:
                     "member_first": filing["member_first"],
                     "member_last": filing["member_last"],
                     "office": filing["office"],
+                    "pdf_url": filing["pdf_url"],
                     **tx,
                 }
             )
@@ -323,7 +404,9 @@ def main() -> None:
             checkpoint()
             print(f"  ...checkpoint saved ({len(trades)} transactions so far)", flush=True)
 
-    print(f"Skipped {skipped_unparseable} unparseable (likely scanned) filings.")
+    print(f"Parsed {digital_filings} filings digitally.")
+    print(f"OCR'd {ocr_filings} scanned filings, finding {ocr_assets_found} best-effort asset mentions.")
+    print(f"{empty_filings} filings yielded nothing (empty OCR or no matching transaction lines).")
     print(f"Skipped {skipped_future_dated} transactions with an impossible (filer-typo) future date.")
     print(f"Added {kept_transactions} transactions within the {BACKFILL_DAYS}-day window.")
 

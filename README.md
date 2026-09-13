@@ -12,6 +12,8 @@ A static site tracking stock trades disclosed by U.S. Senators and Representativ
 
 ## Running locally
 
+The House script's OCR fallback needs the [Tesseract](https://github.com/tesseract-ocr/tesseract) binary installed separately (it's not pip-installable): `winget install UB-Mannheim.TesseractOCR` on Windows, `sudo apt-get install tesseract-ocr` on Ubuntu/Debian (this is also how the GitHub Actions runner gets it). The script looks for `tesseract` on `PATH` first, falling back to the default Windows install location.
+
 ```
 py -3 -m venv .venv
 ./.venv/Scripts/pip install -r scripts/requirements.txt
@@ -30,10 +32,19 @@ House PTRs don't have a clean structured format like the Senate's HTML tables or
 - Large dollar amounts (e.g. `$1,000,001 - $5,000,000`) whose second half wraps onto the next line, sometimes trailing after a ticker bracket
 - Page-break artifacts where the table header re-prints mid-filing
 - Owner codes (`SP`/`JT`/`DC` prefixes, blank = Self)
-- Filings with no extractable text at all (scanned/older paper filings) — these are logged and skipped, not guessed at (~1 in 8 of matched filings, based on the initial backfill)
 - A handful of filings with an internal data-entry error (e.g. a transaction "date" that's literally in the future, later than the filing itself) — skipped rather than shown as an impossible date
 
 This is inherently more fragile than the Senate/SEC sources; if a future filing uses a slightly different layout the regex hasn't seen, it may under-parse that one filing rather than crash the whole run.
+
+### Scanned filings (best-effort OCR)
+
+~1 in 8 filings (based on the initial backfill) have no extractable text at all — they're scanned images of the older paper PTR form, not digitally generated. For these, `scrape_house_ptrs.py` falls back to OCR (`pytesseract` + Tesseract):
+- Renders each page (skipping page 1, which is always this form's certification cover sheet, never data) and crops to just the "Full Asset Name" column, avoiding the checkbox/date columns entirely
+- OCR can tell you *what a word says*, but not reliably *which grid cell it's in* — mapping an "X" mark to the right Purchase/Sale/Amount column would need real table-structure detection (gridline finding + coordinate mapping), which is out of scope here. So these entries carry **no transaction date, type, or amount** — just the company name and a link to the original PDF (labeled "Scanned — unverified" in the UI)
+- Deliberately does not try to merge company names that wrap across two lines in the scan — an occasional split entry (e.g. "Fund Class P" on its own row) is a safer failure mode than incorrectly merging two unrelated companies into one
+- Capped at 20 pages per filing; a few filings run 50+ pages of brokerage attachments and are only partially covered
+
+This is best-effort, not authoritative — always follow the linked PDF to confirm details for anything that matters.
 
 ## Enabling the visit counter (optional)
 

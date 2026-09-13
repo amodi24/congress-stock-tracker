@@ -375,6 +375,20 @@ tbody tr.source-insider td:first-child { box-shadow: inset 3px 0 0 0 var(--accen
 .cell-asset {
   max-width: 280px;
   color: var(--ink-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cell-asset a { color: inherit; text-decoration: underline; text-decoration-color: var(--line); }
+.cell-asset a:hover { color: var(--accent); }
+
+.ocr-tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--house);
 }
 
 .cell-owner { color: var(--ink-soft); white-space: nowrap; }

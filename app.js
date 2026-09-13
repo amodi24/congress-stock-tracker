@@ -107,13 +107,15 @@
       filer_name: `${t.member_first} ${t.member_last}`,
       ticker: t.ticker,
       company: t.asset_name,
-      role: t.owner,
+      role: t.ocr_best_effort ? null : t.owner,
       transaction_date_iso: t.transaction_date_iso,
       filing_date_iso: t.filing_date_iso,
-      type_label: t.transaction_type,
-      type_bucket: senateTypeBucket(t.transaction_type),
+      type_label: t.ocr_best_effort ? "Scanned filing" : t.transaction_type,
+      type_bucket: t.ocr_best_effort ? "other" : senateTypeBucket(t.transaction_type),
       amount_display: t.amount_range,
       amount_min: t.amount_min,
+      ocr_best_effort: !!t.ocr_best_effort,
+      pdf_url: t.pdf_url,
     };
   }
 
@@ -191,6 +193,12 @@
 
     els.tbody.innerHTML = pageRows
       .map((t) => {
+        const companyCell = t.ocr_best_effort && t.pdf_url
+          ? `<a href="${t.pdf_url}" target="_blank" rel="noopener">${escapeHtml(t.company || "—")}</a>`
+          : escapeHtml(t.company || "—");
+        const amountCell = t.ocr_best_effort
+          ? (t.pdf_url ? `<a href="${t.pdf_url}" target="_blank" rel="noopener">View PDF</a>` : "—")
+          : escapeHtml(t.amount_display || "—");
         return `<tr class="source-${t.source}">
           <td class="cell-date">${formatDate(t.transaction_date_iso)}</td>
           <td class="cell-senator">
@@ -198,9 +206,9 @@
             <span class="source-tag">${escapeHtml(t.source_label)}</span>
           </td>
           <td class="cell-ticker">${t.ticker ? tickerCell(t.ticker) : "—"}</td>
-          <td class="cell-asset">${escapeHtml(t.company || "—")}</td>
+          <td class="cell-asset">${companyCell}${t.ocr_best_effort ? '<span class="ocr-tag">Scanned &mdash; unverified</span>' : ""}</td>
           <td><span class="type-pill ${typePillClass(t.type_bucket)}">${escapeHtml(t.type_label || "—")}</span></td>
-          <td class="cell-amount">${escapeHtml(t.amount_display || "—")}</td>
+          <td class="cell-amount">${amountCell}</td>
           <td class="cell-owner">${escapeHtml(t.role || "—")}</td>
           <td class="cell-date">${formatDate(t.filing_date_iso)}</td>
         </tr>`;

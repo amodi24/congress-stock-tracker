@@ -25,6 +25,9 @@ jobs:
 
       - run: pip install -r scripts/requirements.txt
 
+      - name: Install Tesseract OCR
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+
       - name: Scrape Senate PTR filings
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
