@@ -5,6 +5,7 @@
     trades: [],
     filtered: [],
     query: "",
+    sourceFilter: "all",
     typeFilter: "all",
     sortKey: "transaction_date_iso",
     sortDir: "desc",
@@ -14,28 +15,35 @@
   const els = {
     statCount: document.getElementById("stat-count"),
     statSenators: document.getElementById("stat-senators"),
-    statRange: document.getElementById("stat-range"),
+    statInsiders: document.getElementById("stat-insiders"),
+    statCompanies: document.getElementById("stat-companies"),
     statUpdated: document.getElementById("stat-updated"),
     search: document.getElementById("search"),
-    filterChips: document.querySelectorAll(".filter-chip"),
+    sourceChips: document.querySelectorAll(".filter-chip[data-source]"),
+    typeChips: document.querySelectorAll(".filter-chip[data-type]"),
     resultCount: document.getElementById("result-count"),
     tbody: document.getElementById("trades-body"),
     pagination: document.getElementById("pagination"),
     headers: document.querySelectorAll("th[data-sort]"),
   };
 
-  function typeBucket(transactionType) {
-    const t = transactionType.toLowerCase();
+  function senateTypeBucket(transactionType) {
+    const t = (transactionType || "").toLowerCase();
     if (t.startsWith("purchase")) return "purchase";
     if (t.startsWith("sale")) return "sale";
-    if (t.startsWith("exchange")) return "exchange";
+    return "other";
+  }
+
+  function insiderTypeBucket(code) {
+    if (code === "P") return "purchase";
+    if (code === "S") return "sale";
     return "other";
   }
 
   function typePillClass(bucket) {
     if (bucket === "purchase") return "buy";
     if (bucket === "sale") return "sell";
-    return "exchange";
+    return "other";
   }
 
   function formatDate(iso) {
@@ -44,14 +52,52 @@
     return `${m}/${d}/${y}`;
   }
 
+  function formatUsd(value) {
+    if (value === null || value === undefined) return "—";
+    return "$" + Math.round(value).toLocaleString("en-US");
+  }
+
+  function normalizeSenateTrade(t) {
+    return {
+      source: "senate",
+      source_label: "U.S. Senator",
+      filer_name: `${t.senator_first} ${t.senator_last}`,
+      ticker: t.ticker,
+      company: t.asset_name,
+      role: t.owner,
+      transaction_date_iso: t.transaction_date_iso,
+      filing_date_iso: t.filing_date_iso,
+      type_label: t.transaction_type,
+      type_bucket: senateTypeBucket(t.transaction_type),
+      amount_display: t.amount_range,
+      amount_min: t.amount_min,
+    };
+  }
+
+  function normalizeInsiderTrade(t) {
+    return {
+      source: "insider",
+      source_label: "Company Insider",
+      filer_name: t.reporting_owner,
+      ticker: t.ticker,
+      company: t.issuer_name,
+      role: t.role,
+      transaction_date_iso: t.transaction_date_iso,
+      filing_date_iso: t.filing_date_iso,
+      type_label: t.transaction_code_label,
+      type_bucket: insiderTypeBucket(t.transaction_code),
+      amount_display: formatUsd(t.value_usd),
+      amount_min: t.value_usd,
+    };
+  }
+
   function applyFilters() {
     const q = state.query.trim().toLowerCase();
     state.filtered = state.trades.filter((t) => {
-      if (state.typeFilter !== "all" && typeBucket(t.transaction_type) !== state.typeFilter) {
-        return false;
-      }
+      if (state.sourceFilter !== "all" && t.source !== state.sourceFilter) return false;
+      if (state.typeFilter !== "all" && t.type_bucket !== state.typeFilter) return false;
       if (!q) return true;
-      const haystack = `${t.senator_first} ${t.senator_last} ${t.ticker || ""} ${t.asset_name}`.toLowerCase();
+      const haystack = `${t.filer_name} ${t.ticker || ""} ${t.company}`.toLowerCase();
       return haystack.includes(q);
     });
     sortFiltered();
@@ -102,15 +148,17 @@
 
     els.tbody.innerHTML = pageRows
       .map((t) => {
-        const bucket = typeBucket(t.transaction_type);
-        return `<tr>
+        return `<tr class="source-${t.source}">
           <td class="cell-date">${formatDate(t.transaction_date_iso)}</td>
-          <td class="cell-senator">${escapeHtml(t.senator_first)} ${escapeHtml(t.senator_last)}</td>
+          <td class="cell-senator">
+            <span>${escapeHtml(t.filer_name)}</span>
+            <span class="source-tag">${escapeHtml(t.source_label)}</span>
+          </td>
           <td class="cell-ticker">${t.ticker ? escapeHtml(t.ticker) : "—"}</td>
-          <td class="cell-asset">${escapeHtml(t.asset_name)}</td>
-          <td><span class="type-pill ${typePillClass(bucket)}">${escapeHtml(t.transaction_type)}</span></td>
-          <td class="cell-amount">${escapeHtml(t.amount_range)}</td>
-          <td class="cell-owner">${escapeHtml(t.owner)}</td>
+          <td class="cell-asset">${escapeHtml(t.company || "—")}</td>
+          <td><span class="type-pill ${typePillClass(t.type_bucket)}">${escapeHtml(t.type_label || "—")}</span></td>
+          <td class="cell-amount">${escapeHtml(t.amount_display || "—")}</td>
+          <td class="cell-owner">${escapeHtml(t.role || "—")}</td>
           <td class="cell-date">${formatDate(t.filing_date_iso)}</td>
         </tr>`;
       })
@@ -146,19 +194,21 @@
     }[c]));
   }
 
-  function renderStats(trades, meta) {
+  function renderStats(trades, lastRunDates) {
     els.statCount.textContent = trades.length.toLocaleString();
 
-    const senators = new Set(trades.map((t) => `${t.senator_first} ${t.senator_last}`));
+    const senators = new Set(trades.filter((t) => t.source === "senate").map((t) => t.filer_name));
     els.statSenators.textContent = senators.size.toLocaleString();
 
-    const dates = trades.map((t) => t.transaction_date_iso).filter(Boolean).sort();
-    if (dates.length) {
-      els.statRange.textContent = `${formatDate(dates[0])} – ${formatDate(dates[dates.length - 1])}`;
-    }
+    const insiders = new Set(trades.filter((t) => t.source === "insider").map((t) => t.filer_name));
+    els.statInsiders.textContent = insiders.size.toLocaleString();
 
-    if (meta && meta.last_run_utc) {
-      const d = new Date(meta.last_run_utc);
+    const companies = new Set(trades.map((t) => t.ticker).filter(Boolean));
+    els.statCompanies.textContent = companies.size.toLocaleString();
+
+    const latest = lastRunDates.filter(Boolean).sort().pop();
+    if (latest) {
+      const d = new Date(latest);
       els.statUpdated.textContent = d.toLocaleString("en-US", {
         timeZone: "America/New_York",
         month: "short",
@@ -175,9 +225,18 @@
       applyFilters();
     });
 
-    els.filterChips.forEach((chip) => {
+    els.sourceChips.forEach((chip) => {
       chip.addEventListener("click", () => {
-        els.filterChips.forEach((c) => c.classList.remove("is-active"));
+        els.sourceChips.forEach((c) => c.classList.remove("is-active"));
+        chip.classList.add("is-active");
+        state.sourceFilter = chip.dataset.source;
+        applyFilters();
+      });
+    });
+
+    els.typeChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        els.typeChips.forEach((c) => c.classList.remove("is-active"));
         chip.classList.add("is-active");
         state.typeFilter = chip.dataset.type;
         applyFilters();
@@ -191,7 +250,7 @@
           state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
         } else {
           state.sortKey = key;
-          state.sortDir = key === "senator_last" ? "asc" : "desc";
+          state.sortDir = key === "filer_name" ? "asc" : "desc";
         }
         sortFiltered();
         state.page = 1;
@@ -200,16 +259,35 @@
     });
   }
 
+  async function fetchJson(path, fallback) {
+    try {
+      const res = await fetch(path);
+      if (!res.ok) return fallback;
+      return await res.json();
+    } catch (err) {
+      return fallback;
+    }
+  }
+
   async function init() {
     wireControls();
     try {
-      const [tradesRes, stateRes] = await Promise.all([
-        fetch("data/trades.json"),
-        fetch("data/state.json"),
+      const [senateTrades, senateState, insiderTrades, insiderState] = await Promise.all([
+        fetchJson("data/trades.json", []),
+        fetchJson("data/state.json", null),
+        fetchJson("data/insider_trades.json", []),
+        fetchJson("data/insider_state.json", null),
       ]);
-      state.trades = await tradesRes.json();
-      const meta = stateRes.ok ? await stateRes.json() : null;
-      renderStats(state.trades, meta);
+
+      state.trades = [
+        ...senateTrades.map(normalizeSenateTrade),
+        ...insiderTrades.map(normalizeInsiderTrade),
+      ];
+
+      renderStats(state.trades, [
+        senateState && senateState.last_run_utc,
+        insiderState && insiderState.last_run_utc,
+      ]);
       applyFilters();
     } catch (err) {
       els.tbody.innerHTML = `<tr class="empty-row"><td colspan="8">Couldn't load trade data. Try refreshing.</td></tr>`;

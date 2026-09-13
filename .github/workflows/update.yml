@@ -1,4 +1,4 @@
-name: Update Senate trade data
+name: Update trade data
 
 on:
   schedule:
@@ -32,11 +32,19 @@ jobs:
             python scripts/scrape_senate_ptrs.py
           fi
 
+      - name: Scrape insider Form 4 filings
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python scripts/scrape_insider_trades.py --force
+          else
+            python scripts/scrape_insider_trades.py
+          fi
+
       - name: Commit and push if data changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/trades.json data/state.json
-          git diff --cached --quiet || git commit -m "Update Senate trade data"
+          git add data/trades.json data/state.json data/insider_trades.json data/insider_state.json
+          git diff --cached --quiet || git commit -m "Update trade data"
           git push
 

@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Senate Trade Ledger</title>
-<meta name="description" content="Stock trades disclosed by U.S. Senators under the STOCK Act, sourced directly from the Senate's official eFD filings.">
+<title>Senate &amp; Insider Trade Ledger</title>
+<meta name="description" content="Stock trades disclosed by U.S. Senators and by corporate insiders at the same companies, sourced directly from the Senate's eFD system and SEC EDGAR.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="styles.css">
@@ -13,9 +13,9 @@
 
 <header class="page-head">
   <div class="wrap">
-    <p class="eyebrow">STOCK Act disclosures &middot; U.S. Senate</p>
-    <h1>Senate Trade Ledger</h1>
-    <p class="dek">Every Periodic Transaction Report filed by a sitting Senator, pulled straight from the Senate's own eFD system and updated automatically each morning.</p>
+    <p class="eyebrow">STOCK Act &amp; SEC Form 4 disclosures</p>
+    <h1>Senate &amp; Insider Trade Ledger</h1>
+    <p class="dek">Every Senate Periodic Transaction Report, plus every corporate-insider Form 4 filing at the companies senators have traded &mdash; pulled straight from the Senate's eFD system and SEC EDGAR, updated automatically each morning.</p>
   </div>
 </header>
 
@@ -29,8 +29,12 @@
     <span class="stat-label">Senators</span>
   </div>
   <div class="stat">
-    <span class="stat-value" id="stat-range">&mdash;</span>
-    <span class="stat-label">Date range</span>
+    <span class="stat-value" id="stat-insiders">&mdash;</span>
+    <span class="stat-label">Company insiders</span>
+  </div>
+  <div class="stat">
+    <span class="stat-value" id="stat-companies">&mdash;</span>
+    <span class="stat-label">Companies</span>
   </div>
   <div class="stat">
     <span class="stat-value" id="stat-updated">&mdash;</span>
@@ -42,13 +46,26 @@
   <div class="controls">
     <div class="search-field">
       <svg aria-hidden="true" viewBox="0 0 20 20"><path d="M13.6 12.2a6 6 0 1 0-1.4 1.4l4 4 1.4-1.4-4-4ZM8 12a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"/></svg>
-      <input type="search" id="search" placeholder="Search senator, ticker, or asset&hellip;" aria-label="Search trades">
+      <input type="search" id="search" placeholder="Search filer, ticker, or company&hellip;" aria-label="Search trades">
     </div>
-    <div class="filter-group" role="group" aria-label="Filter by transaction type">
-      <button type="button" class="filter-chip is-active" data-type="all">All</button>
-      <button type="button" class="filter-chip" data-type="purchase">Purchases</button>
-      <button type="button" class="filter-chip" data-type="sale">Sales</button>
-      <button type="button" class="filter-chip" data-type="exchange">Exchanges</button>
+    <div class="filter-rows">
+      <div class="filter-row">
+        <span class="filter-label">Source</span>
+        <div class="filter-group" role="group" aria-label="Filter by source">
+          <button type="button" class="filter-chip is-active" data-source="all">All</button>
+          <button type="button" class="filter-chip" data-source="senate">Senators</button>
+          <button type="button" class="filter-chip" data-source="insider">Insiders</button>
+        </div>
+      </div>
+      <div class="filter-row">
+        <span class="filter-label">Type</span>
+        <div class="filter-group" role="group" aria-label="Filter by transaction type">
+          <button type="button" class="filter-chip is-active" data-type="all">All</button>
+          <button type="button" class="filter-chip" data-type="purchase">Purchases</button>
+          <button type="button" class="filter-chip" data-type="sale">Sales</button>
+          <button type="button" class="filter-chip" data-type="other">Other</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -58,13 +75,13 @@
     <table id="trades-table">
       <thead>
         <tr>
-          <th data-sort="transaction_date_iso" class="is-sorted-desc">Transaction Date</th>
-          <th data-sort="senator_last">Senator</th>
+          <th data-sort="transaction_date_iso" class="is-sorted-desc">Date</th>
+          <th data-sort="filer_name">Filer</th>
           <th data-sort="ticker">Ticker</th>
-          <th>Asset</th>
-          <th data-sort="transaction_type">Type</th>
+          <th>Company</th>
+          <th data-sort="type_label">Type</th>
           <th data-sort="amount_min">Amount</th>
-          <th>Owner</th>
+          <th>Role</th>
           <th data-sort="filing_date_iso">Filed</th>
         </tr>
       </thead>
@@ -77,8 +94,8 @@
 
 <footer class="page-foot">
   <div class="wrap">
-    <p>Source: <a href="https://efdsearch.senate.gov/search/" target="_blank" rel="noopener">efdsearch.senate.gov</a>, the Senate's official electronic financial disclosure system. This is an independent, non-commercial project for personal informational use &mdash; not affiliated with the U.S. Senate.</p>
-    <p>Amounts are disclosed as ranges, not exact figures, per STOCK Act reporting requirements. House of Representatives trades are not yet included.</p>
+    <p>Senate data: <a href="https://efdsearch.senate.gov/search/" target="_blank" rel="noopener">efdsearch.senate.gov</a>, the Senate's official electronic financial disclosure system. Insider data: <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany" target="_blank" rel="noopener">SEC EDGAR</a> Form 4 filings. This is an independent, non-commercial project for personal informational use &mdash; not affiliated with the U.S. Senate or the SEC.</p>
+    <p>Senate amounts are disclosed as ranges, not exact figures, per STOCK Act rules; insider amounts are exact (shares &times; price) from Form 4. Insider coverage is limited to non-derivative (direct stock) transactions at companies senators have traded, not the full market, and House of Representatives trades are not yet included.</p>
   </div>
 </footer>
 
