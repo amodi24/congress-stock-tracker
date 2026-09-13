@@ -1,5 +1,6 @@
 (function () {
   const PAGE_SIZE = 50;
+  const GOATCOUNTER_CODE = "YOUR-GOATCOUNTER-CODE";
 
   const state = {
     trades: [],
@@ -18,6 +19,8 @@
     statInsiders: document.getElementById("stat-insiders"),
     statCompanies: document.getElementById("stat-companies"),
     statUpdated: document.getElementById("stat-updated"),
+    statVisitsTile: document.getElementById("stat-visits-tile"),
+    statVisits: document.getElementById("stat-visits"),
     search: document.getElementById("search"),
     sourceChips: document.querySelectorAll(".filter-chip[data-source]"),
     typeChips: document.querySelectorAll(".filter-chip[data-type]"),
@@ -269,8 +272,23 @@
     }
   }
 
+  async function loadVisitCount() {
+    if (GOATCOUNTER_CODE === "YOUR-GOATCOUNTER-CODE") return;
+    try {
+      const res = await fetch(`https://${GOATCOUNTER_CODE}.goatcounter.com/counter//.json`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.count) return;
+      els.statVisits.textContent = data.count;
+      els.statVisitsTile.hidden = false;
+    } catch (err) {
+      // GoatCounter unreachable or not yet enabled for public counts -- fail quietly.
+    }
+  }
+
   async function init() {
     wireControls();
+    loadVisitCount();
     try {
       const [senateTrades, senateState, insiderTrades, insiderState] = await Promise.all([
         fetchJson("data/trades.json", []),

@@ -21,6 +21,16 @@ py -3 -m venv .venv
 
 Then open `http://127.0.0.1:8000/`.
 
+## Enabling the visit counter (optional)
+
+The "Site visits" stat tile uses [GoatCounter](https://www.goatcounter.com/) (free, privacy-friendly, no cookies). It's off by default — the tile stays hidden until it's configured. To turn it on:
+
+1. Sign up at goatcounter.com and pick a site code (e.g. `congress-stock-tracker`, giving you `https://congress-stock-tracker.goatcounter.com`).
+2. In that site's Settings, enable **"Allow adding visitor counts on your website"** (off by default) so the public JSON count endpoint responds.
+3. Replace `YOUR-GOATCOUNTER-CODE` in both `index.html` (the `data-goatcounter` script tag) and `app.js` (`GOATCOUNTER_CODE`) with your real site code, then commit and push.
+
+If the public JSON endpoint ever turns out not to allow cross-origin `fetch()` in practice, swap `loadVisitCount()` in `app.js` for GoatCounter's own `<img>`/`<iframe>` embed snippet instead (see their [visitor counter docs](https://www.goatcounter.com/help/visitor-counter)) — that route sidesteps CORS entirely, at the cost of not matching the page's own typography.
+
 ## Scope
 
 - **Senate only** on the official side — House disclosures are largely non-machine-readable PDFs and are out of scope for now.
