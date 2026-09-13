@@ -39,3 +39,4 @@ jobs:
           git add data/trades.json data/state.json
           git diff --cached --quiet || git commit -m "Update Senate trade data"
           git push
+
